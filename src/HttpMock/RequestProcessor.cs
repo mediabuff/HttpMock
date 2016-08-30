@@ -14,7 +14,7 @@ namespace HttpMock
 		RequestHandler FindHandler(string method, string path);
 	}
 
-	public class RequestProcessor : IHttpRequestDelegate, IRequestProcessor
+	public class RequestProcessor : IRequestProcessor
 	{
 		private static readonly ILog _log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
 	    private IRequestHandlerList _handlers;
@@ -32,17 +32,17 @@ namespace HttpMock
 				return;
 			}
 
-			IRequestHandler handler = _requestMatcher.Match(request, _handlers);
+			/*IRequestHandler handler = _requestMatcher.Match(request, _handlers);
 
 			if (handler == null) {
 				_log.DebugFormat("No Handlers matched");
 				ReturnHttpMockNotFound(response);
 				return;
 			}
-			HandleRequest(request, body, response, handler);
+			HandleRequest(request, body, response, handler);*/
 		}
 
-	    private static void HandleRequest(HttpRequestHead request, IDataProducer body, IHttpResponseDelegate response, IRequestHandler handler)
+	    private static void HandleRequest(Kayak.Http.HttpRequestHead request, IDataProducer body, IHttpResponseDelegate response, IRequestHandler handler)
 	    {
 	        _log.DebugFormat("Matched a handler {0}:{1} {2}", handler.Method, handler.Path, DumpQueryParams(handler.QueryParams));
 	        IDataProducer dataProducer = GetDataProducer(request, handler);
@@ -70,7 +70,7 @@ namespace HttpMock
 	        _log.DebugFormat("End Processing request for : {0}:{1}", request.Method, request.Uri);
 	    }
 
-	    private static IDataProducer GetDataProducer(HttpRequestHead request, IRequestHandler handler) {
+	    private static IDataProducer GetDataProducer(Kayak.Http.HttpRequestHead request, IRequestHandler handler) {
 			return request.Method != "HEAD" ? handler.ResponseBuilder.BuildBody(request.Headers) : null;
 		}
 

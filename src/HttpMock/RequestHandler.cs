@@ -98,7 +98,7 @@ namespace HttpMock
 			return _observedRequests.Count;
 		}
 
-		public void RecordRequest(HttpRequestHead request, string body)
+		public void RecordRequest(Kayak.Http.HttpRequestHead request, string body)
 		{
 			_observedRequests.Enqueue(new ReceivedRequest(request, body));
 		}

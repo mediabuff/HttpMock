@@ -10,7 +10,7 @@ namespace HttpMock
 {
 	public class EndpointMatchingRule : IMatchingRule
 	{
-		public bool IsEndpointMatch(IRequestHandler requestHandler, HttpRequestHead request) {
+		public bool IsEndpointMatch(IRequestHandler requestHandler, Kayak.Http.HttpRequestHead request) {
 			if (requestHandler.QueryParams == null)
 				throw new ArgumentException("requestHandler QueryParams cannot be null");
 
@@ -31,7 +31,7 @@ namespace HttpMock
 			return uriStartsWith && httpMethodsMatch && queryParamMatch;
 		}
 
-	    private static bool MatchPath(IRequestHandler requestHandler, HttpRequestHead request)
+	    private static bool MatchPath(IRequestHandler requestHandler, Kayak.Http.HttpRequestHead request)
 	    {
 	        var pathToMatch = request.Uri;
             int positionOfQueryStart = GetStartOfQueryString(request.Uri);
@@ -48,7 +48,7 @@ namespace HttpMock
 	        return uri.LastIndexOf('?');
 	    }
 
-	    private static Dictionary<string, string> GetQueryParams(HttpRequestHead request) {
+	    private static Dictionary<string, string> GetQueryParams(Kayak.Http.HttpRequestHead request) {
             int positionOfQueryStart = GetStartOfQueryString(request.Uri);
 			if(positionOfQueryStart < 1)
 				return new Dictionary<string, string>();

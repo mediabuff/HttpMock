@@ -11,7 +11,7 @@ namespace HttpMock
 		ResponseBuilder ResponseBuilder { get; }
 
         bool CanVerifyConstraintsFor(string url);
-        void RecordRequest(HttpRequestHead request, string body);
+        void RecordRequest(Kayak.Http.HttpRequestHead request, string body);
         int RequestCount();
     }
 }

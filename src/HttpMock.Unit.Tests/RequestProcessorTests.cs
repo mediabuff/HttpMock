@@ -24,10 +24,10 @@ namespace HttpMock.Unit.Tests {
 			_httpResponseDelegate = MockRepository.GenerateStub<IHttpResponseDelegate>();
 
 			_ruleThatReturnsFirstHandler = MockRepository.GenerateStub<IMatchingRule>();
-			_ruleThatReturnsFirstHandler.Stub(x => x.IsEndpointMatch(null, new HttpRequestHead())).IgnoreArguments().Return(true).Repeat.Once();
+			_ruleThatReturnsFirstHandler.Stub(x => x.IsEndpointMatch(null, new Kayak.Http.HttpRequestHead())).IgnoreArguments().Return(true).Repeat.Once();
 
 			_ruleThatReturnsNoHandlers = MockRepository.GenerateStub<IMatchingRule>();
-			_ruleThatReturnsNoHandlers.Stub(x => x.IsEndpointMatch(null, new HttpRequestHead())).IgnoreArguments().Return(false);
+			_ruleThatReturnsNoHandlers.Stub(x => x.IsEndpointMatch(null, new Kayak.Http.HttpRequestHead())).IgnoreArguments().Return(false);
 		}
 
 		[Test]
@@ -145,7 +145,7 @@ namespace HttpMock.Unit.Tests {
             handlerWithConstraints.WithUrlConstraint(uri => uri.Contains(excludePhrase) == false);
 
             var matchingRule = MockRepository.GenerateMock<IMatchingRule>();
-            matchingRule.Stub(m => m.IsEndpointMatch(Arg<IRequestHandler>.Is.Anything, Arg<HttpRequestHead>.Is.Anything)).Return(true);
+            matchingRule.Stub(m => m.IsEndpointMatch(Arg<IRequestHandler>.Is.Anything, Arg<Kayak.Http.HttpRequestHead>.Is.Anything)).Return(true);
             
             var p = new RequestProcessor(matchingRule, new RequestHandlerList { handlerWithConstraints });
 

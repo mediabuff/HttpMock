@@ -1,127 +1,141 @@
 ﻿using System;
-using System.Net;
+using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
 using System.Net.Sockets;
 using System.Reflection;
+using System.Text;
 using System.Threading;
-using Kayak;
-using Kayak.Http;
 using log4net;
+using Nowin;
 
 namespace HttpMock
 {
-	public class HttpServer : IHttpServer
-	{
-		private readonly RequestProcessor _requestProcessor;
-		private readonly RequestWasCalled _requestWasCalled;
-		private readonly RequestWasNotCalled _requestWasNotCalled;
-		private readonly IScheduler _scheduler;
-		private readonly Uri _uri;
-		private IDisposable _disposableServer;
-		private static readonly ILog _log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
+    public class HttpServer : IHttpServer
+    {
+        private readonly RequestProcessor _requestProcessor;
+        private readonly RequestWasCalled _requestWasCalled;
+        private readonly RequestWasNotCalled _requestWasNotCalled;
+        private readonly Uri _uri;
+        private static readonly ILog Log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
+        private readonly AutoResetEvent _finishEvent = new AutoResetEvent(false);
 
-		private Thread _thread;
-		private readonly RequestHandlerFactory _requestHandlerFactory;
+        private Thread _thread;
+        private readonly RequestHandlerFactory _requestHandlerFactory;
 
-		public HttpServer(Uri uri) {
-			_uri = uri;
-			_scheduler = KayakScheduler.Factory.Create(new SchedulerDelegate());
-			_requestProcessor = new RequestProcessor(new EndpointMatchingRule(), new RequestHandlerList());
-			_requestWasCalled = new RequestWasCalled(_requestProcessor);
-			_requestWasNotCalled = new RequestWasNotCalled(_requestProcessor);
-			_requestHandlerFactory = new RequestHandlerFactory(_requestProcessor);
-		}
+        public HttpServer(Uri uri)
+        {
+            _uri = uri;
+            _requestProcessor = new RequestProcessor(new EndpointMatchingRule(), new RequestHandlerList());
+            _requestWasCalled = new RequestWasCalled(_requestProcessor);
+            _requestWasNotCalled = new RequestWasNotCalled(_requestProcessor);
+            _requestHandlerFactory = new RequestHandlerFactory(_requestProcessor);
+        }
 
-		public void Start() {
-			_thread = new Thread(StartListening);
-			_thread.Start();
-			if (!IsAvailable()) {
-				throw new InvalidOperationException("Kayak server not listening yet.");
-			}
-		}
+        public void Start()
+        {
+            _thread = new Thread(StartListening);
+            _thread.Start();
+            if (!IsAvailable())
+            {
+                throw new InvalidOperationException("Kayak server not listening yet.");
+            }
+        }
 
-		public bool IsAvailable() {
-			const int timesToWait = 5;
-			int attempts = 0;
-			using (var tcpClient = new TcpClient()) {
-				while (attempts < timesToWait) {
-					try {
-						tcpClient.Connect(_uri.Host, _uri.Port);
-						return tcpClient.Connected;
-					} catch (SocketException) {}
+        public bool IsAvailable()
+        {
+            const int timesToWait = 5;
+            var attempts = 0;
+            using (var tcpClient = new TcpClient())
+            {
+                while (attempts < timesToWait)
+                {
+                    try
+                    {
+                        tcpClient.Connect(_uri.Host, _uri.Port);
+                        return tcpClient.Connected;
+                    }
+                    catch (SocketException)
+                    {
+                    }
+                    attempts++;
+                }
+                return false;
+            }
+        }
 
-					Thread.Sleep(100);
-					attempts++;
-				}
-				return false;
-			}
-		}
+        public void Dispose()
+        {
+            _finishEvent.Set();
+        }
 
-		public void Dispose() {
-			if (_scheduler != null)
-			{
-				_scheduler.Stop();
-				_scheduler.Dispose();
-			}
-			if (_disposableServer != null)
-			{
-				_disposableServer.Dispose();
-			}
-		}
+        public RequestHandler Stub(Func<RequestHandlerFactory, RequestHandler> func)
+        {
+            return func.Invoke(_requestHandlerFactory);
+        }
 
-		public RequestHandler Stub(Func<RequestHandlerFactory, RequestHandler> func) {
-			return func.Invoke(_requestHandlerFactory);
-		}
+        public RequestHandler AssertWasCalled(Func<RequestWasCalled, RequestHandler> func)
+        {
+            return func.Invoke(_requestWasCalled);
+        }
 
-		public RequestHandler AssertWasCalled(Func<RequestWasCalled, RequestHandler> func) {
-			return func.Invoke(_requestWasCalled);
-		}
+        public RequestHandler AssertWasNotCalled(Func<RequestWasNotCalled, RequestHandler> func)
+        {
+            return func.Invoke(_requestWasNotCalled);
+        }
 
-		public RequestHandler AssertWasNotCalled(Func<RequestWasNotCalled, RequestHandler> func) {
-			return func.Invoke(_requestWasNotCalled);
-		}
+        public IHttpServer WithNewContext()
+        {
+            _requestProcessor.ClearHandlers();
+            return this;
+        }
 
-		public IHttpServer WithNewContext() {
-			_requestProcessor.ClearHandlers();
-			return this;
-		}
+        public IHttpServer WithNewContext(string baseUri)
+        {
+            WithNewContext();
+            return this;
+        }
 
-		public IHttpServer WithNewContext(string baseUri) {
-			WithNewContext();
-			return this;
-		}
+        public string WhatDoIHave()
+        {
+            return _requestProcessor.WhatDoIHave();
+        }
 
-		public string WhatDoIHave() {
-			return _requestProcessor.WhatDoIHave();
-		}
+        private void StartListening()
+        {
+            try
+            {
+                var server = ServerBuilder
+                    .New().SetPort(_uri.Port)
+                    .SetOwinApp(context =>
+                    {
+                        var requestHeader = HttpRequestHead.LoadFromOwinContext(context);
+                        _requestProcessor.OnRequest(requestHeader, null, null);
 
-		private void StartListening() {
-			try
-			{
-				var ipEndPoint = new IPEndPoint(IPAddress.Any, _uri.Port);
-				Exception e = null;
-				_scheduler.Post(() =>
-				{
-					try {
-						_disposableServer = KayakServer.Factory
-							.CreateHttp(_requestProcessor, _scheduler)
-							.Listen(ipEndPoint);
+                        var responseText = "Hello World via OWIN";
+                        var responseBytes = Encoding.UTF8.GetBytes(responseText);
 
-					} catch(Exception ex)
-					{
-						e = ex;
-						_log.Error("Error when trying to post actions to the scheduler in StartListening", ex);
-					}
-				});
+                        // OWIN Environment Keys: http://owin.org/spec/spec/owin-1.0.0.html
+                        var responseStream = (Stream) context["owin.ResponseBody"];
+                        var responseHeaders = (IDictionary<string, string[]>) context["owin.ResponseHeaders"];
 
-				_scheduler.Start();
-				Thread.Sleep(100);
-				if (e != null)
-					throw e;
+                        responseHeaders["Content-Length"] = new string[]
+                            {responseBytes.Length.ToString(CultureInfo.InvariantCulture)};
+                        responseHeaders["Content-Type"] = new string[] {"text/plain"};
 
-			} catch(Exception ex)
-			{
-				_log.Error("Error when trying to StartListening", ex);
-			}
-		}
-	}
+
+
+                        return responseStream.WriteAsync(responseBytes, 0, responseBytes.Length);
+                    })
+                    .Build();
+                server.Start();
+                _finishEvent.WaitOne();
+                server.Dispose();
+            }
+            catch (Exception ex)
+            {
+                Log.Error("Error when trying to StartListening", ex);
+            }
+        }
+    }
 }
